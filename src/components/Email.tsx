@@ -38,7 +38,7 @@ const Email = () => {
     if (file) data.append("attachment", file); 
 
   try {
-    const res = await axios.post("http://localhost:3001/api/send-email", data, {
+    const res = await axios.post("https://email-backend-86mn.onrender.com/api/send-email", data, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
@@ -61,7 +61,7 @@ const Email = () => {
 const fetchEmails = async () => {
   setHistoryLoading(true);
   try {
-    const res = await axios.get("http://localhost:3001/api/sent-emails");
+    const res = await axios.get("https://email-backend-86mn.onrender.com/api/sent-emails");
     setSentEmails(res.data);
   } 
   catch (err) {
@@ -114,7 +114,7 @@ const handleBulkUpload = async () => {
 
   try {
     setBulkLoading(true);
-    await axios.post("http://localhost:3001/api/import-emails", formData, {
+    await axios.post("https://email-backend-86mn.onrender.com/api/import-emails", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
