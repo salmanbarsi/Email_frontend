@@ -2,52 +2,59 @@ import { Fragment, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import axios from "axios";
 import bgimg from "./bgimg.jpg";
+import readXlsxFile from "read-excel-file";
+
 
 const Email = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isOpen2, setIsOpen2] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "",});
+  const [commonformData, setcommonFormData] = useState({ subject: "", message: "",});
   const [file, setFile] = useState<File | null>(null);
   const [sentEmails, setSentEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [excelData, setExcelData] = useState<any[][]>([]);
+  const [imortmodel, setimortmodel] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false);
+
 
   const handleChange = (e : any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) setFile(e.target.files[0]);
+  const commonhandleChange = (e: any) => {
+    setcommonFormData({ ...commonformData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  setLoading(true);
-  const data = new FormData();
-  data.append("name", formData.name);      
-  data.append("email", formData.email);    
-  data.append("subject", formData.subject);
-  data.append("message", formData.message);
-  if (file) data.append("attachment", file); 
+    setLoading(true);
+    const data = new FormData();
+    data.append("name", formData.name);      
+    data.append("email", formData.email);    
+    data.append("subject", formData.subject);
+    data.append("message", formData.message);
+    if (file) data.append("attachment", file); 
 
-try {
-  const res = await axios.post("http://localhost:3001/api/send-email", data, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  try {
+    const res = await axios.post("http://localhost:3001/api/send-email", data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
-  alert("✅ Email sent successfully!");
-  setFormData({ name: "", email: "", subject: "", message: "" });
-  setFile(null);
-  fetchEmails();
-} 
-catch (err: any) {
-  console.error(err);
-  setFile(null);
-  alert("❌ Failed to send email. Try again later.");
-}
-finally {
-  setLoading(false);
-}
+    alert("✅ Email sent successfully!");
+    setFormData({ name: "", email: "", subject: "", message: "" });
+    setFile(null);
+    fetchEmails();
+  } 
+  catch (err: any) {
+    console.error(err);
+    setFile(null);
+    alert("❌ Failed to send email. Try again later.");
+  }
+  finally {
+    setLoading(false);
+  }
 };
 
 
@@ -66,20 +73,82 @@ const fetchEmails = async () => {
 };
 // console.log(sentEmails)
 
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files && e.target.files.length > 0) {
+    const file = e.target.files[0];
+    setFile(file);
+
+    // If it's an Excel file, try reading it
+    try {
+      const rows = await readXlsxFile(file);
+      setExcelData(rows);
+      console.log(rows);
+    } 
+    catch (err) {
+      console.warn("Not a valid Excel file or failed to read:", err);
+    }
+  }
+};
+
   const openDrawer = () => {
     setIsOpen(true);
     fetchEmails();
   };
+  const openDrawer2 = () => {
+    setIsOpen2(true);
+    fetchEmails();
+  };
+
+
+  // Bulk upload
+const handleBulkUpload = async () => {
+  if (!file) {
+    alert("No file selected!");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("subject", commonformData.subject);
+  formData.append("message", commonformData.message);
+
+  try {
+    setBulkLoading(true);
+    await axios.post("http://localhost:3001/api/import-emails", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    alert("✅ All emails sent successfully!");
+    setimortmodel(false);
+    setFile(null);
+    setExcelData([]);
+    setcommonFormData({ subject: "", message: "" });
+    fetchEmails();
+  } 
+  catch (err) {
+    console.error("Bulk upload error:", err);
+    alert("❌ Failed to send bulk emails. Try again later.");
+  } 
+  finally {
+    setBulkLoading(false);
+  }
+};
 
   return (
     <div style={{ backgroundImage: `url(${bgimg})` }} className="min-h-screen bg-cover">
       <div className="inset-0 backdrop-blur-sm bg-black/30 p-5 min-h-screen">
+        
         {/* Drawer button */}
-        <button onClick={openDrawer} className="m-4 p-2 rounded-md focus:outline-none">
-          <i className="fa-solid fa-bars text-white w-10 h-10"></i>
-        </button>
+        <div className="flex justify-between">
+          <button onClick={openDrawer} className="m-4 p-2 rounded-md focus:outline-none bg-pink-500">
+            <i className="fa-solid fa-bars text-white w-10"></i>
+          </button>
+          <button onClick={openDrawer2} className="m-4 p-2 justify-end rounded-md focus:outline-none text-white font-mono bg-pink-500">
+            Mail-list
+          </button>
+        </div>
 
-        {/* Drawer */}
+        {/* Drawer1 */}
         <Transition show={isOpen} as={Fragment}>
           <Dialog as="div" className="fixed inset-0 z-50 overflow-hidden" onClose={() => setIsOpen(false)}>
             <div className="absolute inset-0 bg-gray-900/50" />
@@ -118,6 +187,69 @@ const fetchEmails = async () => {
           </Dialog>
         </Transition>
 
+        {/* Drawer2 */}
+        <Transition show={isOpen2} as={Fragment}>
+          <Dialog as="div" className="fixed inset-0 z-50 overflow-hidden" onClose={() => setIsOpen2(false)}>
+            <div className="absolute inset-0 bg-gray-900/50" />
+            <div className="fixed inset-y-0 right-0 flex max-w-full">
+              <Transition.Child as={Fragment} enter="transform transition ease-in-out duration-500" enterFrom="translate-x-full" enterTo="translate-x-100" leave="transform transition ease-in-out duration-500" leaveFrom="translate-x-100" leaveTo="translate-x-full">
+                <Dialog.Panel className="w-screen max-w-md bg-gray-800 shadow-xl">
+                  <div className="flex items-center justify-between px-4 py-6 sm:px-6">
+                    <Dialog.Title className="text-lg text-white font-bold font-mono">Bulk Import</Dialog.Title>
+                    <button onClick={() => setIsOpen2(false)} className="text-gray-400 hover:text-white rounded-md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6">
+                        <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="px-4 sm:px-6 max-h-[80vh] overflow-y-auto">
+                    {/*Excel file import */}
+                    <div className="border-2 border-red-600 bg-red-900/40 text-red-200 rounded-xl p-4 shadow-md">
+                        <h2 className="text-xl font-bold mb-1">⚠️ Notice</h2>
+                        <p className="text-sm leading-relaxed">
+                          Please upload a valid <span className="font-semibold text-white">Excel file</span>.  
+                          The file must contain a column with <span className="font-semibold text-white">email addresses</span>,  
+                          as they are required for sending messages.
+                        </p>
+                      </div>
+                    <div className="mt-5">
+                      <input type="file" id="excelFile" accept=".xlsx, .xls" onChange={handleFileChange} className="hidden"/>
+                      <label className="block mb-2 text-white">Select Your Excel File</label>
+                      <label htmlFor="excelFile" className="px-4 py-2 font-mono border-2 border-pink-600 text-white rounded cursor-pointer hover:bg-pink-500">
+                        Import
+                      </label>
+
+                      {/* ✅ Show file name if selected */}
+                      {file && (
+                        <p className="mt-4 text-sm text-gray-200 font-mono">
+                          📂 Selected file: <span className="text-pink-400">{file.name}</span>
+                        </p>
+                      )}
+
+                    <label className="block mb-2 mt-4 text-white">Subject
+                      <input type="text" name="subject" value={commonformData.subject} onChange={commonhandleChange} required className="w-full mt-1 p-2 rounded-md bg-pink-500/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </label>
+
+                    <label className="block mb-2 text-white">Message
+                      <textarea name="message" value={commonformData.message} onChange={commonhandleChange} rows={5} required className="w-full mt-1 p-2 rounded-md bg-pink-500/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </label>
+
+                      <div className="flex justify-end">
+                        <button onClick={() => {setimortmodel(true);setIsOpen2(false);}} className="border-2 font-mono border-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded transition-all">
+                          Send
+                        </button>
+                      </div>
+                      
+                      <br /><br />
+                      
+                    </div>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </Dialog>
+        </Transition>
+
         {/* Email form */}
         <div className="flex justify-center items-center p-4">
           <form onSubmit={handleSubmit} className="w-full max-w-md bg-black/50 backdrop-blur-sm p-6 rounded-lg shadow-md text-white">
@@ -144,10 +276,66 @@ const fetchEmails = async () => {
             </label>
 
             <button type="submit" disabled={loading} className={`w-full border-2 border-pink-500 py-2 px-4 rounded-md font-semibold transition ${loading ? "bg-pink-500/70 cursor-not-allowed" : "hover:bg-pink-500"}`}>
-              {loading ? "Sending..." : "Send"}
+              {loading ? (<><i className="fa-solid fa-gear fa-spin"></i> Sending...</>) : ("Send")}
             </button>
           </form>
         </div>
+
+        {imortmodel ? (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center transition-opacity duration-300">
+          <div className="bg-gray-900 p-6 rounded-2xl shadow-lg w-3/5 max-h-[80vh] overflow-y-auto transform scale-95 transition-all duration-300 ease-out">
+            <h2 className="font-mono font-bold mb-6 text-white text-xl">Imported Excel Records</h2>
+
+            {/* ✅ Preview Excel Data */}
+            {excelData.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full border border-pink-600 text-sm font-mono">
+                <thead>
+                  <tr className="bg-pink-600 text-white font-bold">
+                    {excelData[0]?.map((cell, j) => (
+                      <th key={j} className="border border-pink-600 px-2 py-1 text-left">
+                        {cell?.toString()}
+                      </th>
+                    ))}
+                    <th>Subject</th>
+                    <th>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {excelData.slice(1).map((row, i) => (
+                    <tr key={i} className="border border-pink-600 text-slate-300 px-2 py-1">
+                      {row.map((cell, j) => (
+                        <td key={j} className="border border-pink-600 text-slate-300 px-2 py-1">
+                          {cell?.toString()}
+                        </td>
+                      ))}
+                      <td className="border border-pink-600 text-slate-300 px-2 py-1">{commonformData.subject}</td>
+                      <td className="border border-pink-600 text-slate-300 px-2 py-1">{commonformData.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            ) : (
+              <p className="text-gray-400">No data found in this file.</p>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setimortmodel(false)}
+                className="border-2 font-mono border-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-all"
+              >
+                Close
+              </button>
+              <button onClick={handleBulkUpload} disabled={bulkLoading} className={`border-2 border-violet-500 font-mono text-white px-4 ml-4 py-2 rounded transition-all ${ bulkLoading ? "bg-violet-500/70 cursor-not-allowed" : "hover:bg-violet-600"}`}>
+                {bulkLoading ? (<><i className="fa-solid fa-gear fa-spin mr-2"></i> Sending...</>) : ("Send")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+        
       </div>
     </div>
   );
