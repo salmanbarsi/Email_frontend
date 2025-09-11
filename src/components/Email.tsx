@@ -211,7 +211,7 @@ const Email = () => {
                       <ul className="space-y-2 mt-2">
                         {received.map((email: any) => (
                           <li key={email.id} className="text-white bg-gray-700 p-4 rounded">
-                            <p><strong>From:</strong> {email.from_email}</p>
+                            <p><strong>From:</strong> {email.from}</p>
                             <p><strong>To:</strong> {process.env.REACT_APP_USER_EMAIL || "You"}</p>
                             <p><strong>Subject:</strong> {email.subject}</p>
                             <p className="text-sm text-gray-300">{new Date(email.date).toLocaleString()}</p>
