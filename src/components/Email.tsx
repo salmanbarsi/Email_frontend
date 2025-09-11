@@ -37,7 +37,7 @@ const Email = () => {
     if (file) data.append("attachment", file);
 
     try {
-      await axios.post("http://localhost:3001/api/send-email", data, {
+      await axios.post("https://email-backend2-ftmb.onrender.com/api/send-email", data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       alert("✅ Email sent successfully!");
@@ -57,7 +57,7 @@ const Email = () => {
   const fetchEmails = async () => {
     setHistoryLoading(true);
     try {
-      const res = await axios.get("http://localhost:3001/api/sent-emails");
+      const res = await axios.get("https://email-backend2-ftmb.onrender.com/api/sent-emails");
       setSentEmails(res.data);
     } catch (err) {
       console.error(err);
@@ -70,7 +70,7 @@ const Email = () => {
   const fetchReceivedEmails = async () => {
     setReceivedLoading(true);
     try {
-      const res = await axios.get("http://localhost:3001/read-mails");
+      const res = await axios.get("https://email-backend2-ftmb.onrender.com/read-mails");
       if (res.status === 200 && res.data) setReceived(res.data);
       else setReceived([]);
     } catch (err) {
@@ -109,7 +109,7 @@ const Email = () => {
 
     try {
       setBulkLoading(true);
-      await axios.post("http://localhost:3001/api/import-emails", formData, {
+      await axios.post("https://email-backend2-ftmb.onrender.com/api/import-emails", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       alert("✅ All emails sent successfully!");
