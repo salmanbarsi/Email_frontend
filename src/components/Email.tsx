@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import axios from "axios";
 import bgimg from "./bgimg.jpg";
@@ -8,131 +8,140 @@ import readXlsxFile from "read-excel-file";
 const Email = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isOpen2, setIsOpen2] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "",});
-  const [commonformData, setcommonFormData] = useState({ subject: "", message: "",});
+  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
+  const [commonformData, setcommonFormData] = useState({ subject: "", message: "" });
   const [file, setFile] = useState<File | null>(null);
   const [sentEmails, setSentEmails] = useState<any[]>([]);
+  const [received, setReceived] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [receivedLoading, setReceivedLoading] = useState(false);
   const [excelData, setExcelData] = useState<any[][]>([]);
-  const [imortmodel, setimortmodel] = useState(false)
+  const [imortmodel, setimortmodel] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"sent" | "received">("sent");
 
+  // ---------- Handlers ----------
+  const handleChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const commonhandleChange = (e: any) => setcommonFormData({ ...commonformData, [e.target.name]: e.target.value });
 
-  const handleChange = (e : any) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-  const commonhandleChange = (e: any) => {
-    setcommonFormData({ ...commonformData, [e.target.name]: e.target.value });
-  };
-
+  // ---------- Send single email ----------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     setLoading(true);
     const data = new FormData();
-    data.append("name", formData.name);      
-    data.append("email", formData.email);    
+    data.append("name", formData.name);
+    data.append("email", formData.email);
     data.append("subject", formData.subject);
     data.append("message", formData.message);
-    if (file) data.append("attachment", file); 
+    if (file) data.append("attachment", file);
 
-  try {
-    const res = await axios.post("https://email-backend-86mn.onrender.com/api/send-email", data, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    try {
+      await axios.post("http://localhost:3001/api/send-email", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      alert("✅ Email sent successfully!");
+      setFormData({ name: "", email: "", subject: "", message: "" });
+      setFile(null);
+      fetchEmails();
+    } catch (err) {
+      console.error(err);
+      setFile(null);
+      alert("❌ Failed to send email. Try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    alert("✅ Email sent successfully!");
-    setFormData({ name: "", email: "", subject: "", message: "" });
-    setFile(null);
-    fetchEmails();
-  } 
-  catch (err: any) {
-    console.error(err);
-    setFile(null);
-    alert("❌ Failed to send email. Try again later.");
-  }
-  finally {
-    setLoading(false);
-  }
-};
+  // ---------- Fetch sent emails ----------
+  const fetchEmails = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await axios.get("http://localhost:3001/api/sent-emails");
+      setSentEmails(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
+  // ---------- Fetch received emails ----------
+  const fetchReceivedEmails = async () => {
+    setReceivedLoading(true);
+    try {
+      const res = await axios.get("http://localhost:3001/read-mails");
+      if (res.status === 200 && res.data) setReceived(res.data);
+      else setReceived([]);
+    } catch (err) {
+      console.error("Error fetching received emails:", err);
+      setReceived([]);
+    } finally {
+      setReceivedLoading(false);
+    }
+  };
 
-const fetchEmails = async () => {
-  setHistoryLoading(true);
-  try {
-    const res = await axios.get("https://email-backend-86mn.onrender.com/api/sent-emails");
-    setSentEmails(res.data);
-  } 
-  catch (err) {
-    console.error(err);
-  }
-  finally {
-    setHistoryLoading(false);
-  }
-};
-// console.log(sentEmails)
-
-const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (e.target.files && e.target.files.length > 0) {
+  // ---------- Handle Excel file ----------
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     setFile(file);
 
-    // If it's an Excel file, try reading it
     try {
       const rows = await readXlsxFile(file);
       setExcelData(rows);
-      console.log(rows);
-    } 
-    catch (err) {
+    } catch (err) {
       console.warn("Not a valid Excel file or failed to read:", err);
+      setExcelData([]);
     }
-  }
-};
+  };
 
+  // ---------- Bulk Upload ----------
+  const handleBulkUpload = async () => {
+    if (!file) {
+      alert("No file selected!");
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("subject", commonformData.subject);
+    formData.append("message", commonformData.message);
+
+    try {
+      setBulkLoading(true);
+      await axios.post("http://localhost:3001/api/import-emails", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      alert("✅ All emails sent successfully!");
+      setimortmodel(false);
+      setFile(null);
+      setExcelData([]);
+      setcommonFormData({ subject: "", message: "" });
+      fetchEmails();
+    } catch (err) {
+      console.error("Bulk upload error:", err);
+      alert("❌ Failed to send bulk emails. Try again later.");
+      setimortmodel(false);
+      setFile(null);
+      setExcelData([]);
+      setcommonFormData({ subject: "", message: "" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  // ---------- Open drawers ----------
   const openDrawer = () => {
     setIsOpen(true);
     fetchEmails();
+    fetchReceivedEmails();
   };
   const openDrawer2 = () => {
     setIsOpen2(true);
     fetchEmails();
+    fetchReceivedEmails();
   };
 
-
-  // Bulk upload
-const handleBulkUpload = async () => {
-  if (!file) {
-    alert("No file selected!");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("subject", commonformData.subject);
-  formData.append("message", commonformData.message);
-
-  try {
-    setBulkLoading(true);
-    await axios.post("https://email-backend-86mn.onrender.com/api/import-emails", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    alert("✅ All emails sent successfully!");
-    setimortmodel(false);
-    setFile(null);
-    setExcelData([]);
-    setcommonFormData({ subject: "", message: "" });
-    fetchEmails();
-  } 
-  catch (err) {
-    console.error("Bulk upload error:", err);
-    alert("❌ Failed to send bulk emails. Try again later.");
-  } 
-  finally {
-    setBulkLoading(false);
-  }
-};
 
   return (
     <div style={{ backgroundImage: `url(${bgimg})` }} className="min-h-screen bg-cover">
@@ -153,39 +162,70 @@ const handleBulkUpload = async () => {
           <Dialog as="div" className="fixed inset-0 z-50 overflow-hidden" onClose={() => setIsOpen(false)}>
             <div className="absolute inset-0 bg-gray-900/50" />
             <div className="fixed inset-y-0 left-0 flex max-w-full">
-              <Transition.Child as={Fragment} enter="transform transition ease-in-out duration-500" enterFrom="-translate-x-full" enterTo="translate-x-0" leave="transform transition ease-in-out duration-500" leaveFrom="translate-x-0" leaveTo="-translate-x-full">
+              <Transition.Child
+                as={Fragment}
+                enter="transform transition ease-in-out duration-500"
+                enterFrom="-translate-x-full"
+                enterTo="translate-x-0"
+                leave="transform transition ease-in-out duration-500"
+                leaveFrom="translate-x-0"
+                leaveTo="-translate-x-full"
+              >
                 <Dialog.Panel className="w-screen max-w-md bg-gray-800 shadow-xl">
                   <div className="flex items-center justify-between px-4 py-6 sm:px-6">
-                    <Dialog.Title className="text-lg text-white font-bold font-mono">Historys</Dialog.Title>
-                    <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white rounded-md">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6">
-                        <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </button>
+                    <Dialog.Title className="text-lg text-white font-bold">Emails</Dialog.Title>
+                    <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white rounded-md">✖</button>
                   </div>
+
+                  <div className="flex justify-center bg-black/80 p-2 border-b-2 border-pink-500">
+                    <div
+                      onClick={() => setActiveTab("sent")}
+                      className={`w-1/2 cursor-pointer text-center py-2 font-bold text-white ${activeTab === "sent" ? "bg-pink-500/50" : ""}`}
+                    >
+                      Sent
+                    </div>
+                    <div
+                      onClick={() => setActiveTab("received")}
+                      className={`w-1/2 cursor-pointer text-center py-2 font-bold text-white ${activeTab === "received" ? "bg-pink-500/50" : ""}`}
+                    >
+                      Received
+                    </div>
+                  </div>
+
                   <div className="px-4 sm:px-6 max-h-[80vh] overflow-y-auto">
-                    {historyLoading ? (
-                      <p className="text-gray-300 animate-pulse">⏳ Loading history...</p>
-                    ) : sentEmails.length === 0 ? (
-                      <p className="text-gray-300">No emails sent yet.</p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {sentEmails.map((email) => (
-                          <li key={email.id} className="text-white bg-gray-700 p-4 font-mono rounded">
-                            <p><strong>From:</strong> Salmanbarsi8270@gmail.com</p>
-                            <p><strong>To:</strong> {email.email}</p>
+                    {(historyLoading || receivedLoading) ? (
+                      <p className="text-gray-300 animate-pulse text-center">⏳ Loading...</p>
+                    ) : activeTab === "sent" ? (
+                      sentEmails.length === 0 ? <p className="text-gray-300 mt-4">No sent emails yet.</p> :
+                        <ul className="space-y-2 mt-2">
+                          {sentEmails.map((email) => (
+                            <li key={email.id} className="text-white bg-gray-700 p-4 rounded">
+                              <p><strong>From:</strong> {process.env.REACT_APP_USER_EMAIL || "You"}</p>
+                              <p><strong>To:</strong> {email.email}</p>
+                              <p><strong>Subject:</strong> {email.subject}</p>
+                              <p className="text-sm text-gray-300">{new Date(email.sent_at).toLocaleString()}</p>
+                            </li>
+                          ))}
+                        </ul>
+                    ) : received.length === 0 ? <p className="text-gray-300 mt-4">No received emails yet.</p> :
+                      <ul className="space-y-2 mt-2">
+                        {received.map((email: any) => (
+                          <li key={email.id} className="text-white bg-gray-700 p-4 rounded">
+                            <p><strong>From:</strong> {email.from_email}</p>
+                            <p><strong>To:</strong> {process.env.REACT_APP_USER_EMAIL || "You"}</p>
                             <p><strong>Subject:</strong> {email.subject}</p>
-                            <p className="text-sm text-gray-300">{new Date(email.sent_at).toLocaleString()}</p>
+                            <p className="text-sm text-gray-300">{new Date(email.date).toLocaleString()}</p>
                           </li>
                         ))}
                       </ul>
-                    )}
+                    }
                   </div>
                 </Dialog.Panel>
               </Transition.Child>
             </div>
           </Dialog>
         </Transition>
+
 
         {/* Drawer2 */}
         <Transition show={isOpen2} as={Fragment}>
@@ -208,7 +248,7 @@ const handleBulkUpload = async () => {
                         <h2 className="text-xl font-bold mb-1">⚠️ Notice</h2>
                         <p className="text-sm leading-relaxed">
                           Please upload a valid <span className="font-semibold text-white">Excel file</span>.  
-                          The file must contain a column with <span className="font-semibold text-white">email addresses</span>,  
+                          The file must contain a column with <span className="font-semibold text-white">name, email addresses</span>,  
                           as they are required for sending messages.
                         </p>
                       </div>
